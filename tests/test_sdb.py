@@ -2,12 +2,48 @@ import base64
 import re
 import socket
 import subprocess
+import time
 from pathlib import Path, PurePosixPath
 
 import pytest
 
 from samsung_tv_root import sdb as sdb_module
 from samsung_tv_root.sdb import SdbClient, SdbError, build_shell_injection
+
+
+@pytest.mark.parametrize("persistent", (False, True))
+def test_persistent_capture_keeps_connection_beyond_connect_timeout(
+    monkeypatch, persistent
+):
+    client = SdbClient(Path("sdb"), "192.0.2.50")
+    listening = {}
+
+    def inject(command, **kwargs):
+        assert kwargs["unbounded"] is persistent
+        with socket.create_connection(("127.0.0.1", listening["port"])) as peer:
+            time.sleep(0.15)
+            try:
+                peer.sendall(b"session complete\n[exit:0]\n")
+            except OSError:
+                pass
+        return subprocess.CompletedProcess(("sdb",), 1, "", "closed")
+
+    monkeypatch.setattr(client, "inject", inject)
+
+    def capture():
+        return client.capture(
+            "id",
+            callback_host="127.0.0.1",
+            timeout=0.05,
+            persistent=persistent,
+            on_listening=lambda callback, bind, port: listening.update(port=port),
+        )
+
+    if persistent:
+        assert "session complete" in capture().output
+    else:
+        with pytest.raises(SdbError, match="stopped responding"):
+            capture()
 
 
 def test_shell_injection_round_trip() -> None:

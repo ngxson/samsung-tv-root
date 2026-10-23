@@ -366,7 +366,9 @@ signed-archive launcher. [motodrizzle](https://www.reddit.com/r/Tizen/comments/1
 reported the capability/namespace/launcher route on an S90D; this implementation
 adapts that route. It has no model whitelist: it checks the SDB foothold,
 capabilities, tar support, and .NET runtime on the target and chooses its payload
-accordingly. It was live-tested on my QN90B and QN90F with an
+accordingly. If Samsung's apphost rejects `dotnet --list-runtimes`, it checks the
+active runtime symlink and core libraries instead. It was live-tested on my QN90B
+and QN90F with an
 authenticated UID/GID 0 agent, root command execution, unchanged system-file
 hashes, and per-run staging cleanup. The S90D firmware has matching platform
 components, and its owner reported the same underlying route, but this exact
@@ -389,8 +391,11 @@ does not establish that SDB is available.
 Use `-o json` before `archive-root` for machine-readable identity and cleanup
 evidence. The older `archive-root probe MODEL HOST` spelling still works, but
 the model label no longer selects or limits the route. `--command` can be
-repeated. This option does not yet provide an interactive PTY, disable UEP, or
-run through the host controller. The existing root commands remain the
+repeated. This CLI option does not yet provide an interactive PTY, disable UEP,
+or run through the host controller. This checkout's `./shell.sh` launcher adds a
+PTY through the archive route for the local Docker SDB setup; see the
+[quick start](QUICKSTART.md#interactive-shell-with-the-local-docker-setup).
+The existing root commands remain the
 defaults. It never replaces `/etc/passwd`, the verification key, or the
 installed Bash on disk: the helper binds per-run views inside its own mount
 namespace. Its archive and payloads are staged under

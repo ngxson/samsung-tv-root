@@ -87,6 +87,87 @@ def test_archive_route_selects_payload_from_target_runtime(runtimes, expected) -
 
 
 @pytest.mark.parametrize(
+    ("runtime_path", "path_exit", "expected"),
+    (
+        ("/usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.9", 0, "6.0"),
+        ("/usr/share/dotnet/shared/Microsoft.NETCore.App/3.1.3", 0, "3.1"),
+        ("/usr/share/dotnet/shared/Microsoft.NETCore.App/8.0.1", 0, "6.0"),
+        ("/usr/share/dotnet/shared/Microsoft.NETCore.App/5.0.0", 0, None),
+        ("/usr/share/dotnet/shared/Microsoft.NETCore.App/3.0.0", 0, None),
+        ("/usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.0.9", 0, None),
+        ("/usr/share/dotnet.tizen/netcoreapp", 0, None),
+        ("/usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.9\nextra", 0, None),
+        ("", 1, None),
+    ),
+)
+def test_archive_route_checks_active_runtime_when_apphost_rejects_enumeration(
+    runtime_path, path_exit, expected
+) -> None:
+    from samsung_tv_root.archive_root import ArchiveRootError, _check_target
+    from samsung_tv_root.sdb import CaptureResult
+
+    class Client:
+        def connect(self):
+            pass
+
+        def require_device(self):
+            pass
+
+        def require_shell_injection(self):
+            pass
+
+        def capture(self, command, timeout=15):
+            if command.startswith("getcap"):
+                output = (
+                    "/usr/bin/dotnet cap_setgid,cap_sys_admin=ei\n"
+                    "/usr/sbin/sdbd-tarlauncher cap_setgid,cap_setuid=eip"
+                )
+            elif "--list-runtimes" in command:
+                return CaptureResult("Unknown option --list-runtimes.\n[exit:255]\n", 0)
+            elif "readlink -f" in command:
+                return CaptureResult(f"{runtime_path}\n[exit:{path_exit}]\n", 0)
+            elif "tar --help" in command:
+                output = "--to-command"
+            else:
+                output = "hash-passwd /etc/passwd\nhash-key /usr/share/sdbd/public.pem"
+            return CaptureResult(output + "\n[exit:0]\n", 0)
+
+    if expected is None:
+        with pytest.raises(ArchiveRootError):
+            _check_target(Client())
+    else:
+        assert _check_target(Client()).runtime == expected
+
+
+def test_archive_route_does_not_hide_unrelated_runtime_command_failures() -> None:
+    from samsung_tv_root.archive_root import ArchiveRootError, _check_target
+    from samsung_tv_root.sdb import CaptureResult
+
+    class Client:
+        def connect(self):
+            pass
+
+        def require_device(self):
+            pass
+
+        def require_shell_injection(self):
+            pass
+
+        def capture(self, command, timeout=15):
+            if command.startswith("getcap"):
+                return CaptureResult(
+                    "/usr/bin/dotnet cap_setgid,cap_sys_admin=ei\n"
+                    "/usr/sbin/sdbd-tarlauncher cap_setgid,cap_setuid=eip\n[exit:0]\n",
+                    0,
+                )
+            assert command == "/usr/bin/dotnet --list-runtimes"
+            return CaptureResult("Permission denied\n[exit:126]\n", 0)
+
+    with pytest.raises(ArchiveRootError, match="Permission denied"):
+        _check_target(Client())
+
+
+@pytest.mark.parametrize(
     "capabilities",
     (
         "/usr/bin/dotnet cap_setgid=eip\n/usr/sbin/sdbd-tarlauncher cap_setgid,cap_setuid=eip",

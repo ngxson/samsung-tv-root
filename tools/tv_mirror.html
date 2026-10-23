@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TV screen and remote</title>
+<style>
+:root { color-scheme: dark; font: 15px system-ui, sans-serif; background: #101317; color: #e9edf2; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { min-height: 65px; padding: 14px 22px; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid #303843; }
+h1 { margin: 0; font-size: 18px; white-space: nowrap; }
+#status { color: #aab8c6; font-variant-numeric: tabular-nums; }
+main { display: grid; grid-template-columns: minmax(0,1fr) 270px; gap: 20px; padding: 20px; }
+.screen { background: #050709; border: 1px solid #303843; border-radius: 10px; overflow: hidden; align-self: start; }
+#screen { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; }
+aside { display: grid; gap: 18px; }
+section { background: #191f26; border: 1px solid #303843; border-radius: 10px; padding: 14px; }
+h2 { margin: 0 0 12px; color: #aab8c6; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+button { border: 1px solid #435061; border-radius: 8px; background: #293341; color: #fff; padding: 12px 6px; font: inherit; cursor: pointer; min-height: 44px; touch-action: manipulation; }
+button:hover { background: #35475b; }
+button:active, button.pressed { background: #246c9a; }
+button:focus-visible { outline: 2px solid #69c3ff; outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: wait; }
+.grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.dpad { margin-bottom: 12px; }
+.dpad button { font-size: 20px; }
+.dpad .ok { font-size: 15px; background: #205b81; }
+.up { grid-column: 2; } .left { grid-column: 1; } .down { grid-column: 2; }
+.zero { grid-column: 2; }
+.shortcuts { grid-template-columns: repeat(2,1fr); }
+#control-status { min-height: 20px; font-size: 13px; color: #b7c9d9; }
+.hint { margin: 0; color: #8494a5; font-size: 12px; line-height: 1.6; }
+@media (max-width: 760px) {
+  header { align-items: start; flex-direction: column; gap: 6px; }
+  main { grid-template-columns: 1fr; padding: 12px; }
+  aside { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .navigation { grid-row: span 2; }
+  .hint, #control-status { grid-column: 1/-1; }
+}
+</style>
+<header><h1>TV screen &amp; remote</h1><span id="status" role="status">Connecting to TV…</span></header>
+<main>
+  <div class="screen"><img id="screen" src="/stream.mjpg" alt="Live TV screen"></div>
+  <aside>
+    <section class="navigation">
+      <h2>Navigation</h2>
+      <div class="grid dpad">
+        <button class="up" data-key="up" aria-label="Up">▲</button>
+        <button class="left" data-key="left" aria-label="Left">◀</button>
+        <button class="ok" data-key="ok">OK</button>
+        <button data-key="right" aria-label="Right">▶</button>
+        <button class="down" data-key="down" aria-label="Down">▼</button>
+      </div>
+      <div class="grid shortcuts">
+        <button data-key="back">Back</button>
+        <button data-key="home">Home</button>
+      </div>
+    </section>
+    <section>
+      <h2>Volume</h2>
+      <div class="grid">
+        <button data-key="volume_down" aria-label="Volume down">Vol −</button>
+        <button data-key="mute">Mute</button>
+        <button data-key="volume_up" aria-label="Volume up">Vol +</button>
+      </div>
+    </section>
+    <section>
+      <h2>Number pad</h2>
+      <div class="grid">
+        <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+        <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+        <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+        <button class="zero" data-key="0">0</button>
+      </div>
+    </section>
+    <div id="control-status" role="status" aria-live="polite"></div>
+    <p class="hint">Keyboard: arrows · Enter · Esc · Home · 0–9<br>Volume: + / − · M to mute</p>
+  </aside>
+</main>
+<script>
+const token='__CONTROL_TOKEN__';
+const statusText=document.getElementById('status');
+const controlStatus=document.getElementById('control-status');
+const buttons=[...document.querySelectorAll('[data-key]')];
+let connected=false, controlId=0, displayedControl=0;
+function setConnected(value){
+  connected=value;
+  buttons.forEach(b=>b.disabled=!value);
+}
+setConnected(false);
+async function sendKey(key){
+  if(!connected) return;
+  const button=buttons.find(b=>b.dataset.key===key);
+  if(button){button.classList.add('pressed');setTimeout(()=>button.classList.remove('pressed'),140);}
+  try{
+    const response=await fetch('/control',{
+      method:'POST', headers:{'Content-Type':'application/json','X-Control-Token':token},
+      body:JSON.stringify({key})
+    });
+    const result=await response.json();
+    if(!response.ok) throw new Error(result.error || 'Control failed');
+    controlId=Math.max(controlId,result.id);
+    controlStatus.textContent='Sending '+(button?.textContent || key)+'…';
+  }catch(e){controlStatus.textContent=e.message;}
+}
+buttons.forEach(button=>button.addEventListener('click',()=>sendKey(button.dataset.key)));
+const keys={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',Enter:'ok',Escape:'back',Backspace:'back',Home:'home','+':'volume_up','=':'volume_up','-':'volume_down',m:'mute',M:'mute'};
+document.addEventListener('keydown',event=>{
+  if(event.ctrlKey || event.altKey || event.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+  const key=/^[0-9]$/.test(event.key)?event.key:keys[event.key];
+  if(!key) return;
+  event.preventDefault();
+  if(!event.repeat) sendKey(key);
+});
+async function update(){
+  try{
+    const response=await fetch('/status',{cache:'no-store'});
+    if(!response.ok) throw new Error('Disconnected');
+    const s=await response.json();
+    setConnected(s.connected);
+    if(s.sequence){
+      const age=Math.max(0,Date.now()/1000-s.received_at);
+      statusText.textContent=`${s.width} × ${s.height} · ${s.fps.toFixed(1)} fps · target ${s.target_fps} fps`+(age>2?` · Last frame ${age.toFixed(0)}s ago`:'');
+    }else statusText.textContent=s.message;
+    if(s.control && s.control.id>=controlId && s.control.id>displayedControl){
+      displayedControl=s.control.id;
+      controlStatus.textContent=s.control.error || ('Sent: '+s.control.key.replaceAll('_',' '));
+    }
+  }catch(e){
+    setConnected(false);
+    statusText.textContent='Disconnected. Run ./mirror.sh to reconnect.';
+  }
+  setTimeout(update,500);
+}
+update();
+</script>
+</html>

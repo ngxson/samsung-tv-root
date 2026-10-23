@@ -190,6 +190,7 @@ class SdbClient:
         command: str,
         *,
         timeout: float | None = None,
+        unbounded: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         injection = build_shell_injection(command)
         argument = f"{SDB_APPINSTALL_PREFIX}{injection}"
@@ -203,6 +204,7 @@ class SdbClient:
             ("-s", self.serial, "shell", argument),
             check=False,
             timeout=timeout or self.timeout,
+            unbounded=unbounded,
         )
 
     def require_shell_injection(self) -> None:
@@ -246,7 +248,9 @@ class SdbClient:
         port: int = 0,
         timeout: float = DEFAULT_CAPTURE_TIMEOUT,
         on_listening: Callable[[str, str, int], None] | None = None,
+        persistent: bool = False,
     ) -> CaptureResult:
+        """Capture a command; persistent sessions keep only the connect deadline."""
         callback = callback_host or route_callback_host(self.tv_host)
         bind = bind_host or callback
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
@@ -274,7 +278,9 @@ class SdbClient:
 
             def launch() -> None:
                 try:
-                    state["result"] = self.inject(launch_command, timeout=timeout)
+                    state["result"] = self.inject(
+                        launch_command, timeout=timeout, unbounded=persistent
+                    )
                 except BaseException as error:
                     state["error"] = error
 
@@ -312,7 +318,7 @@ class SdbClient:
                     "and Developer Mode host IP."
                 ) from error
             with connection:
-                connection.settimeout(timeout)
+                connection.settimeout(None if persistent else timeout)
                 chunks: list[bytes] = []
                 while True:
                     try:
@@ -360,8 +366,9 @@ class SdbClient:
         *,
         check: bool,
         timeout: float | None = None,
+        unbounded: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        effective_timeout = timeout or self.timeout
+        effective_timeout = None if unbounded else timeout or self.timeout
         try:
             result = subprocess.run(
                 (str(self.executable), *arguments),

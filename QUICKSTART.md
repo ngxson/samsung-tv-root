@@ -130,9 +130,127 @@ cleans its per-run TV staging files after a normal session.
 
 All root routes here require a working SDB connection. If TCP port 26101 refuses
 connections, resolve Developer Mode and SDB availability before running root
-commands. A reachable TV network API does not prove SDB is available. A rejected
-`dotnet --list-runtimes` currently stops archive-root runtime detection, even
-when a runtime directory exists.
+commands. A reachable TV network API does not prove SDB is available. If Samsung's
+apphost rejects `dotnet --list-runtimes`, archive-root resolves the active
+`/usr/share/dotnet.tizen/netcoreapp` runtime and verifies its core libraries
+before selecting a supported payload.
+
+### Interactive shell with the local Docker setup
+
+This checkout includes a launcher for the existing `tizen-sdb` Docker container:
+
+```sh
+./shell.sh 192.0.2.50
+```
+
+Replace `192.0.2.50` with your TV's address; all `192.0.2.x` addresses here are
+documentation examples. You can also use `export TV_HOST=192.0.2.50` (with
+your TV's address) to omit the address from the shell, mirror and dump commands.
+There is no default TV address.
+The launcher detects the controller's LAN address and uses the local payload
+build or the v0.0.9 release downloaded under `build/tv-check/release`.
+Docker must be running. The TV must have Developer Mode
+enabled for the controller's address and provide Samsung's signed
+`iot-hub-control/bin/socat` relay.
+
+The launcher obtains temporary root through the archive route and opens a
+persistent Bash PTY. Commands such as `cd` and `export` retain their state;
+Ctrl-C interrupts the remote command. Type `exit` or press Ctrl-D to close the
+shell. The temporary listener accepts only the controller's IP; closing the
+shell removes session staging and disconnects SDB. Do not share the TV's SDB
+connection with another agent during a session.
+
+To override the TV address or controller address:
+
+```sh
+./shell.sh 192.0.2.50 --callback-host 192.0.2.10
+./shell.sh --help
+```
+
+### View this TV's menus on the Mac
+
+With the same Docker and payload setup:
+
+```sh
+./mirror.sh 192.0.2.50
+```
+
+This opens a viewer at `http://127.0.0.1:8765`, streaming the TV's compositor at
+**640x360 with a target of 4 fps**. Continuous capture replaces the slower
+full-resolution PNG screenshots. Live tests on this Q7F held approximately
+4.00 fps, including changing Home screens and volume overlays; JPEG frames
+were about 21–34 KiB. Individual app video surfaces and protected playback
+have not been validated. Audio is not streamed.
+
+The viewer includes direction buttons, OK, Back, Home, volume up/down, mute
+and a 0–9 number pad. Keyboard shortcuts: arrows, Enter, Esc/Backspace, Home,
+digits, `+`/`-` for volume and `M` for mute. Each click sends a complete key
+press/release; number keys behave according to the active TV app or input.
+
+Press Ctrl-C in the terminal to stop the TV capture process, close the root
+session and remove its temporary files. Keep the SDB connection exclusive to
+this tool while it runs.
+
+```sh
+./mirror.sh 192.0.2.50 --callback-host 192.0.2.10
+./mirror.sh 192.0.2.50 --width 640 --height 360 --fps 4 --quality 65
+./mirror.sh 192.0.2.50 --no-open --frames 1    # save one JPEG and exit
+./mirror.sh --help
+```
+
+On shutdown, the latest frame and measured frame rate are saved to
+`build/tv-mirror/latest.jpg` and `latest.json`; successful session cleanup is
+recorded in `last-session.json`. The live frame is also available at
+`http://127.0.0.1:8765/frame.jpg`. The old `latest.png`, if present, is an earlier
+full-resolution capture.
+
+The web viewer and controls listen only on the Mac's loopback interface. A
+separate temporary video callback on the Mac's LAN address accepts this TV
+with a per-session token. The implementation uses the TV's existing GStreamer
+Wayland capture and JPEG encoder, plus `enlightenment_input_key` for controls.
+No new TV service or native payload is installed.
+
+### Dump this TV for offline study
+
+With the same Docker and payload setup, run from the repository root:
+
+```sh
+PYTHONPATH=src:tools python3 tools/dump_tv.py --host 192.0.2.50 --phase all
+python3 tools/index_dump.py
+```
+
+The local acquisition script requires `--host` or `TV_HOST` and writes to
+`dist/dump` by default. It exports the original mounted filesystems and reads the main eMMC, boot
+regions and active subroot devices into resumable chunks. Compression defaults
+to the TV to reduce network traffic; use `--compression host` on a faster link
+to move that work to the Mac. SHA-256 verifies each source stream and records
+each stored artifact.
+Rerunning the command reuses completed files after checking their hashes.
+
+The indexer produces `rootfs/`, `index.sqlite`, assembled raw images, a partition
+map and `dist/dump/README.md`. Linux links and special nodes are recorded rather
+than created on the Mac. Read the acquisition logs for missing metadata or
+read errors. Writable filesystems are captured live; RAM, virtual filesystems
+and RPMB are outside this dump. Keep the private device data local; `dist/` is
+ignored by Git.
+
+For a USB drive mounted on this TV at `/opt/media/USBDriveA1`, capture directly
+to a dedicated folder instead:
+
+```sh
+PYTHONPATH=src:tools python3 tools/dump_tv_usb.py --host 192.0.2.50 --directory samsung-tv-dump-example
+```
+
+This uses an existing FAT32/exFAT USB filesystem with at least 15 GiB free.
+Large filesystem archives are split into 1 GiB parts; raw images use 128 MiB
+source chunks. Each completed artifact is hashed during capture and read back
+from USB for verification. Local progress and metadata are under
+`dist/dump/usb-acquisition/`. After copying the USB dump folder to the Mac,
+`tools/index_dump.py` verifies and joins the parts before preparing the study
+tree. Keep the USB attached until the capture reports that writes are synchronized.
+If the TV aborts `gzip` during a large filesystem export, rerun the USB command
+with `--uncompressed-files`; completed exports are reused and missing ones are
+written as plain tar parts.
 
 ## 6. Keep root available
 
