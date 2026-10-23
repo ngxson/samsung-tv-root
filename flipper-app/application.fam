@@ -1,0 +1,11 @@
+App(
+    appid="dummy_mic",
+    name="Dummy USB Mic",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="dummy_mic_app",
+    stack_size=4096,
+    fap_category="USB",
+    fap_version="0.1",
+    fap_description="USB noise microphone with transfer counters and serial debug commands",
+    sources=["dummy_mic.c", "mic_core.c", "usb_mic.c"],
+)

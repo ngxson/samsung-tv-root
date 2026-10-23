@@ -70,6 +70,9 @@ requirements instead of rejecting every build-number change.
 - Speaker-volume control and opt-in native TV event streams.
 - QN90F retained-frame screenshots and bounded compositor overlays.
 - SWU firmware-key extraction for both tested models.
+- An experimental [Flipper Zero dummy USB microphone](flipper-app/README.md)
+  with generated noise, host-read counters, and USB debug/exit commands, for
+  investigating whether a TV opens an external microphone.
 
 Root and UEP changes remain volatile. The controller makes root appear
 semi-persistent by reacquiring it from another computer after a TV reboot. It

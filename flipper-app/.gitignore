@@ -1,0 +1,8 @@
+.ufbt/
+dist/
+__pycache__/
+.pytest_cache/
+.vscode/
+.clang-format
+*.wav
+
