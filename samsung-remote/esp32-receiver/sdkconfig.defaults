@@ -1,0 +1,37 @@
+# Bluetooth: NimBLE host, BLE only
+CONFIG_BT_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=n
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=n
+CONFIG_BTDM_CTRL_MODE_BTDM=n
+
+# BLE 5 extended scanning, so extended adverts are seen too (no-op on ESP32)
+CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT=y
+CONFIG_BT_NIMBLE_EXT_ADV=y
+
+# We are the central (like the TV); observer role is needed for scanning.
+# Peripheral + broadcaster: the TV relay (tv.c) poses as a remote to the TV
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
+
+# Keep the bond (LTK + remote IRK) across reboots
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+
+# Larger MTU for voice/OTA experiments later
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
+CONFIG_BT_NIMBLE_GATT_MAX_PROCS=8
+
+# Keep NimBLE's own logging quiet so our output is readable
+CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y
+
+# Spoof a fresh BD address (burned-in +1 on the last byte) so the TV writes a
+# brand-new gatt_cache file; set to the actual MAC you want or delete the line
+# to use the burned-in address.
+CONFIG_SRR_OWN_ADDR="0c4ea061b80d"
+

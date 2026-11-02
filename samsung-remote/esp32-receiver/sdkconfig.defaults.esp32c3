@@ -1,0 +1,4 @@
+# Log over the native USB port only: a 115200 UART console can't keep up
+# with voice frames (~42 hex lines/s)
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

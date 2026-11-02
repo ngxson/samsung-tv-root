@@ -1,0 +1,199 @@
+menu "Samsung remote receiver"
+
+    config SRR_STRICT_FILTER
+        bool "Strict pairing-mode filter"
+        default y
+        help
+            A pairing candidate must always be connectable, discoverable
+            (pairing mode) and look like HID (service 0x1812 or a HID/remote
+            appearance). With this on it must also look like a Samsung
+            remote: a name starting with "Smart Control" or Samsung
+            manufacturer data (0x0075). Turn it off to pair with any HID
+            device in pairing mode.
+
+    config SRR_MIN_RSSI
+        int "Minimum RSSI (dBm) for a pairing-mode candidate"
+        range -127 0
+        default -80
+        help
+            Keep the remote close to the board while pairing. This avoids
+            grabbing some other Samsung device across the room.
+
+    config SRR_DEBUG_ADV_RSSI
+        int "Dump every advert stronger than this (dBm), any vendor"
+        range -127 0
+        default -65
+        help
+            Each advertiser above this RSSI is dumped once per scan session
+            (address, PDU type, all AD fields, raw bytes), whatever it
+            contains. Hold the remote right next to the board to spot it.
+            Directed and extended adverts are always dumped once.
+
+    config SRR_DEBUG_ADV_ALL
+        bool "Dump every single advert report (very noisy)"
+        default n
+
+    config SRR_HEARTBEAT_S
+        int "Scan summary interval in seconds (0 disables)"
+        range 0 3600
+        default 5
+        help
+            While scanning, print report counts and the strongest
+            advertisers seen in the last interval.
+
+    config SRR_LOG_RAW
+        bool "Log every raw HID report"
+        default y
+
+    config SRR_DUMP_READABLE
+        bool "Read and print every readable characteristic after connect"
+        default y
+        help
+            Useful for reverse engineering the vendor services. Only reads,
+            never writes.
+
+    config SRR_CLEAR_BOND_GPIO
+        int "GPIO of the 'forget remote' button (-1 to disable)"
+        range -1 48
+        default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32H2 || IDF_TARGET_ESP32C2
+        default 0
+        help
+            Holding this button (active low) for 3 seconds while running
+            erases the stored bonds (remote and TV) and reboots. A short
+            press puts the TV relay in pairing mode. Defaults to the BOOT
+            button.
+
+    config SRR_VOICE_KEY
+        int "Samsung key code that starts a voice session (0 = any key)"
+        range 0 255
+        default 160
+        help
+            Pressing this key starts a voice session (start command, 0xFB
+            audio frames logged); pressing it again stops it. The remote
+            only accepts the start while the key is down, so hold it until
+            the LED reacts. The MIC key is 0xA0
+            (160) on the Smart Control 2016. 0 starts a session on every
+            key.
+
+    config SRR_VOICE_LOCAL
+        bool "Voice stays on the board (never sent to the TV)"
+        default y
+        help
+            Holding the voice key runs a session on the board: start on
+            press, stop on release, audio logged as "voice: FRAME" lines
+            for ../voice_capture.py. The TV never sees the voice key, its
+            release or the audio, and its own voice commands are dropped.
+
+    config SRR_VOICE_EXTEND_CMD
+        string "Command sent once after the start, hex (empty = none)"
+        default "310310"
+        help
+            What the TV sends ~250 ms after 31 04 (seen through the relay).
+
+    config SRR_VOICE_START_CMDS
+        string "Voice start command, hex"
+        default "3104"
+        help
+            Written to the 0xFB Feature report (value without the report
+            ID). If no audio arrives within 500 ms the next entry is tried.
+            From TV bt-service __bt_send_voice_cmd: 31 04 = start (mono),
+            31 06 = stereo start, 31 02 = stop. 31 01 17 is the device info
+            query, not a voice command.
+
+    config SRR_VOICE_MAX_MS
+        int "Voice session time limit (ms)"
+        range 1000 60000
+        default 30000
+
+    config SRR_VOICE_PRE_CMD
+        string "Command sent before the voice start command, hex"
+        default ""
+        help
+            The TV's __bt_set_ble_conn_no_latency: 34 31 1A 00 00 asks the
+            remote to stop using connection latency, 34 31 1B 00 00 restores
+            it (the remote's handler requires 0x31 as the second byte). The
+            start command is sent right after it.
+
+    config SRR_VOICE_POST_CMD
+        string "Command sent after the voice stop command, hex"
+        default ""
+
+    config SRR_VOICE_STOP_CMD
+        string "Voice stop command, hex (empty = send nothing)"
+        default "3102"
+
+    config SRR_VOICE_LATENCY0
+        bool "Also set LL connection latency to 0 during voice sessions"
+        default n
+        help
+            The TV does not do this: it asks the remote with
+            SRR_VOICE_PRE_CMD instead.
+
+    config SRR_LED_GPIO
+        int "Status LED GPIO (-1 to disable)"
+        range -1 48
+        default 8 if IDF_TARGET_ESP32C3
+        default 2
+        help
+            Short blink per key press, solid on while a voice session waits
+            for audio, rapid blinking while audio frames arrive. GPIO8 is the blue LED on ESP32-C3 SuperMini boards.
+            A plain LED only: addressable RGB LEDs (WS2812) won't light.
+
+    config SRR_LED_ACTIVE_LOW
+        bool "Status LED is active low"
+        default y if IDF_TARGET_ESP32C3
+        default n
+
+    config SRR_TV_RELAY
+        bool "Relay to the TV: present the board to the TV as a Smart Remote"
+        default y
+        help
+            The board serves a copy of the remote's HID service to the TV,
+            forwards the remote's reports to it and the TV's voice commands
+            (0xFB Feature writes) back to the remote, logging each one.
+            Short-press BOOT to pair with the TV.
+
+    config SRR_TV_NAME
+        string "Device name shown to the TV"
+        depends on SRR_TV_RELAY
+        default "Smart Control 2016"
+
+    config SRR_TV_PNP_ID
+        string "PnP ID shown to the TV (hex, 7 bytes)"
+        depends on SRR_TV_RELAY
+        default ""
+        help
+            Source, vendor ID, product ID, version (16-bit little endian).
+            Empty: the remote's own PnP ID with the product ID + 1 (Smart
+            Control 2016: Realtek 0x005D:0x0002). The TV's bt-service puts
+            devices with vendor 0x04E8 and product 0x2075 in its Smart RC
+            list; to present those, use "02e80475200100".
+
+    config SRR_TV_PAIR_S
+        int "TV pairing mode duration (seconds)"
+        depends on SRR_TV_RELAY
+        range 5 600
+        default 60
+
+    config SRR_SKIP_REMOTE
+        bool "Test: don't scan for or connect to the remote"
+        default n
+        help
+            Skips the remote -> board side entirely: no scanning, and the
+            TV relay acts as if the remote were connected (it advertises to
+            the TV right away). For testing the TV side alone.
+
+    config SRR_OWN_ADDR
+        string "Own public BD address (hex, empty = burned-in)"
+        default ""
+        help
+            The TV keys its bond and its GATT cache on our BD address:
+            a different address forces a completely fresh gatt_cache_<mac>
+            file on the TV (no stale entries from earlier GATT layouts) and a
+            fresh bond. Example: set it to the burned-in address with the
+            last byte +1 to rotate identities. Changing it invalidates ALL
+            bonds: re-pair the remote (Back+Play/Pause) and the TV (BOOT +
+            TV search, REMOTE_PROTO.md §2.5). Written most significant byte
+            first, e.g. "0c4ea061b80b" = 0c:4e:a0:61:b8:0b.
+
+endmenu
