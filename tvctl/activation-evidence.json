@@ -1,0 +1,17 @@
+{
+  "model": null,
+  "host": "192.168.2.174",
+  "runtime": "6.0",
+  "authenticated": true,
+  "uid": 0,
+  "euid": 0,
+  "gid": 0,
+  "egid": 0,
+  "cap_eff": "0000003fffffffff",
+  "smack": "User",
+  "preflight_capabilities": "/usr/bin/dotnet cap_setgid,cap_sys_admin=ei\n/usr/sbin/sdbd-tarlauncher cap_setgid,cap_setuid=eip",
+  "session_exit": 0,
+  "launcher_exit_observed": false,
+  "system_files_unchanged": true,
+  "staging_cleaned": true
+}
