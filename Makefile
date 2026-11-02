@@ -26,6 +26,8 @@ common-payload:
 		--configuration Release --output "$(COMMON_OUT)"
 	$(DOTNET) build payloads/common/SamsungTvEventAgent.csproj \
 		--configuration Release --output "$(COMMON_OUT)"
+	$(DOTNET) build payloads/common/SamsungTvMicCapture.csproj \
+		--configuration Release --output "$(COMMON_OUT)"
 	cp payloads/qn90f/MaliPhysicalProbe.runtimeconfig.json \
 		"$(COMMON_OUT)/SamsungTvRootAgent.runtimeconfig.json"
 	cp payloads/qn90f/MaliPhysicalProbe.runtimeconfig.json \
